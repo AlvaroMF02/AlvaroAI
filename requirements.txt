@@ -1,0 +1,9 @@
+langchain-google-genai
+langchain-chroma
+langchain-text-splitters
+langchain-core
+langgraph
+python-dotenv
+jupyter
+ipykernel
+pypdf
