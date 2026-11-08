@@ -1,88 +1,183 @@
-# Álvaro AI — primer prototipo RAG
+# Álvaro AI — Gemelo digital con Gemini
 
-Asistente de portfolio con Gemini, embeddings de Gemini, ChromaDB, LangGraph y memoria conversacional.
+Álvaro AI es un asistente conversacional creado como proyecto final del módulo de **IA Generativa** del programa de **Data Science e IA de Evolve**. Su objetivo es responder preguntas sobre mi formación, experiencia profesional, proyectos técnicos y algunos intereses personales a partir de una base documental propia.
 
-## Estado
-**Prototipo inicial, todavía sin ejecutar contra Gemini.** Los cuatro archivos de `data/` son borradores para revisar. No cumplen por sí solos el volumen aproximado de 20 páginas de texto solicitado como alternativa a 3 documentos. Aunque ya hay cuatro documentos, es recomendable ampliar especialmente proyectos y metodología para demostrar contenido sustancial.
+El asistente habla en primera persona para representar mi estilo de comunicación, pero **es un gemelo digital basado en IA, no soy yo respondiendo en directo**.
 
-## Instalación paso a paso (Bash en VS Code)
+## Objetivo
 
-Abre la carpeta `AlvaroAI_inicio` en VS Code y, desde la terminal Bash situada en la raíz del proyecto, sigue estos pasos. Se recomienda Python 3.11 o 3.12.
+Aplicar los conceptos de modelos de lenguaje, embeddings, recuperación aumentada (RAG), bases de datos vectoriales y memoria conversacional en un caso práctico orientado a mi portfolio profesional.
 
-### 1. Crear el entorno virtual `.venv`
+## Tecnologías
 
-```bash
-python -m venv .venv
+- **Python y Jupyter Notebook:** desarrollo y pruebas.
+- **Google Gemini:** generación de respuestas mediante el modelo indicado en la variable `GEMINI_MODEL`.
+- **`gemini-embedding-001`:** conversión de textos y preguntas en vectores numéricos.
+- **ChromaDB:** almacenamiento y búsqueda de fragmentos por similitud semántica.
+- **LangChain:** integración del modelo, los documentos y la base vectorial.
+- **LangGraph:** flujo del agente y gestión del historial mediante `InMemorySaver`.
+- **python-dotenv:** carga de la clave de API desde un archivo `.env`.
+
+## Arquitectura
+
+```text
+Documentos Markdown
+      |
+      v
+Separación por secciones (##) y fragmentos de texto
+      |
+      v
+Gemini Embeddings (gemini-embedding-001)
+      |
+      v
+ChromaDB (colección alvaro_ai)
+
+Pregunta del usuario
+      |
+      v
+LangGraph (estado + historial de la conversación)
+      |
+      v
+Búsqueda semántica en ChromaDB
+      |
+      v
+Fragmentos relevantes + system prompt + historial
+      |
+      v
+Gemini -> Respuesta
+      |
+      v
+LangGraph guarda los nuevos mensajes en memoria
 ```
 
-Si `python` no está disponible, prueba `python3 -m venv .venv` (Linux/WSL) o `py -m venv .venv` (Windows).
+### Base de conocimiento
 
-### 2. Activar el entorno virtual
+Se utilizan cuatro documentos Markdown en `data/documentos/`:
 
-**Git Bash en Windows:**
+| Archivo | Contenido |
+| --- | --- |
+| `01_perfil.md` | Formación, competencias técnicas, idiomas y perfil profesional. |
+| `02_experiencia.md` | Experiencia en Calconut y ElitechLab. |
+| `03_proyectos.md` | Proyectos como StrikeWatch, PredictCar, Bank Churn y otros. |
+| `04_personalidad.md` | Estilo de comunicación, intereses y límites de privacidad. |
 
-```bash
-source .venv/Scripts/activate
+La preparación de textos utiliza `RecursiveCharacterTextSplitter` con `chunk_size=800` y `chunk_overlap=150`. Antes de fragmentar, el notebook separa las secciones por encabezados de nivel `##`, descarta las introducciones generales y conserva el título de la sección en los fragmentos. Así se reduce el riesgo de perder el nombre de un proyecto al recuperar su descripción.
+
+En las pruebas realizadas se indexaron **34 fragmentos**. Este número puede variar al editar los documentos.
+
+Durante la indexación, los fragmentos se convierten en embeddings y se almacenan en ChromaDB. Durante una consulta, se genera el embedding de la pregunta y se recuperan los fragmentos más cercanos; el nodo de LangGraph consulta **4 fragmentos** (`k=4`). Después Gemini genera una respuesta con esa información y el historial de conversación.
+
+### Memoria conversacional
+
+El grafo utiliza `MessagesState` para representar el historial y `InMemorySaver` para conservarlo entre turnos de la misma conversación. Cada conversación se identifica mediante un `thread_id`. Esta memoria **no es persistente**: se pierde al reiniciar el kernel y no es una base de datos de conversaciones para producción.
+
+Para consultas de seguimiento, el nodo construye la búsqueda con preguntas recientes del usuario y envía el historial a Gemini. Esto permite interpretar referencias como «ese proyecto» cuando anteriormente se ha hablado de PredictCar.
+
+## Estructura del proyecto
+
+```text
+AlvaroAI_inicio/
+├── .env                         # Configuración local
+├── README.md
+├── notebooks/
+│   └── 01_asistente.ipynb      # Notebook principal
+└── data/
+    ├── documentos/
+    │   ├── 01_perfil.md
+    │   ├── 02_experiencia.md
+    │   ├── 03_proyectos.md
+    │   └── 04_personalidad.md
+    └── chromadb/               # Base vectorial generada al ejecutar
 ```
 
-**Bash en Linux o WSL:**
+> La carpeta `notebooks/` es opcional: el notebook también puede estar en la raíz. El código detecta ambas ubicaciones. Si el archivo descargado tiene otro nombre, no es necesario renombrarlo para ejecutar el proyecto.
 
-```bash
-source .venv/bin/activate
-```
+## Instalación y ejecución
 
-Verás `(.venv)` al principio del prompt. Si estás usando VS Code, selecciona este intérprete de Python también para el notebook.
+**Requisitos:** Python, Jupyter Notebook o VS Code con soporte Jupyter, conexión a Internet y una clave de API de Gemini con acceso a los modelos configurados.
 
-### 3. Instalar las dependencias
+1. Abrir una terminal en la carpeta raíz del proyecto y crear el entorno virtual:
 
-```bash
-python -m pip install -r requirements.txt
-```
+   ```bash
+   python -m venv .venv
+   ```
 
-**Nota:** instalar `requirements.txt` no crea ni `.venv` ni `.env` automáticamente.
+2. Activar el entorno:
 
-### 4. Crear y configurar el archivo `.env`
+   **Windows (PowerShell):**
 
-```bash
-cp .env.example .env
-```
+   ```powershell
+   .\.venv\Scripts\Activate.ps1
+   ```
 
-Abre el nuevo archivo `.env` en VS Code y sustituye `pon_tu_clave_aqui` por tu clave de Google AI Studio:
+   **Windows (Git Bash):**
 
-```dotenv
-GOOGLE_API_KEY=tu_clave_real_de_gemini
-GEMINI_MODEL=gemini-2.5-flash
-GEMINI_EMBEDDING_MODEL=models/gemini-embedding-001
-```
+   ```bash
+   source .venv/Scripts/activate
+   ```
 
-Las dos líneas de modelos ya vienen en `.env.example`; puedes dejarlas como están. Nunca compartas tu clave ni subas `.env` a GitHub. La clave se obtiene en https://aistudio.google.com/api-keys.
+3. Instalar las bibliotecas utilizadas:
 
-### 5. Comprobar que se carga la clave
+   ```bash
+   python -m pip install jupyter ipykernel python-dotenv langchain-core langchain-google-genai langchain-text-splitters langchain-chroma langgraph
+   ```
 
-```bash
-python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('API configurada:', bool(os.getenv('GOOGLE_API_KEY')))"
-```
+4. Crear un archivo `.env` en la raíz del proyecto:
 
-Si aparece `API configurada: True`, Python está leyendo la variable. **Esto no comprueba todavía que la clave sea válida ni que Gemini responda.**
+   ```dotenv
+   GOOGLE_API_KEY=tu_clave_de_api
+   GEMINI_MODEL=nombre_del_modelo_disponible
+   ```
 
-### 6. Ejecutar el notebook
+   Sustituir los valores de ejemplo por una clave real y un **identificador de modelo disponible en la cuenta de Gemini**. En las pruebas del proyecto se utilizó `gemini-3.5-flash-lite` como modelo generativo y `gemini-embedding-001` para embeddings. La disponibilidad y los límites dependen de la API y de la cuenta.
 
-Abre `notebooks/01_asistente.ipynb`, selecciona como kernel el Python de `.venv` y ejecuta las celdas desde el principio. Las primeras llamadas reales a Gemini necesitan conexión a Internet y están sujetas a las cuotas de la API.
+5. Colocar los cuatro documentos Markdown en `data/documentos/` y abrir `01_asistente.ipynb` (o el nombre actual del notebook) desde Jupyter o VS Code.
 
-## Estructura
-- `src/rag.py`: cargador, fragmentación, embeddings, vector store, recuperación, grafo y memoria.
-- `data/`: documentos iniciales de conocimiento y estilo.
-- `notebooks/01_asistente.ipynb`: demo, cinco preguntas y test de memoria.
+6. Seleccionar el kernel del entorno `.venv` y ejecutar las celdas **en orden, desde el principio**. El notebook carga los documentos, construye los embeddings, crea o actualiza la colección ChromaDB, configura el agente LangGraph y ejecuta las pruebas.
 
-## Justificación del prompt
-Separa la identidad simulada del usuario real, exige fundamentación documental, reconoce lagunas, trata el contexto recuperado como información y ajusta el tono a un asistente accesible. La personalidad no reemplaza hechos verificables.
+7. Para probar otra pregunta, editar el valor de `pregunta_usuario` en la última celda y ejecutarla. Las preguntas con el mismo `thread_id` comparten historial mientras el kernel permanezca activo.
 
-## Limitaciones
-- Chroma está en memoria y se reconstruye al reiniciar: sirve para el MVP; añadiremos persistencia cuando se consolide la carga.
-- `InMemorySaver` mantiene contexto entre turnos de la misma ejecución, pero no entre reinicios.
-- No hay streaming ni despliegue web todavía.
-- Faltan pruebas reales con la API, revisión de documentación y validación de respuestas.
-- No subir `.env`, datos privados ni información confidencial de empresas.
+**Importante:** si se modifican los documentos y cambia la cantidad de fragmentos, conviene detener el kernel, eliminar la colección local de prueba en `data/chromadb/` y volver a indexar. Los identificadores existentes no eliminan automáticamente fragmentos antiguos que ya no se utilizan. No borrar esa carpeta durante una ejecución activa.
 
-## Pruebas
-Ejecutar preguntas de cobertura, memoria y desconocimiento. Comprobar manualmente las respuestas frente a las fuentes. Para la entrega final añadir resultados observados, no inventados, y captura o demostración real.
+## Diseño y justificación del system prompt
+
+El `SYSTEM_PROMPT` define el comportamiento del agente. Se ha diseñado para que las respuestas sean útiles en un portfolio dirigido a reclutadores, manteniendo una forma de hablar cercana.
+
+Las principales decisiones son:
+
+- **Primera persona:** responde como representación de Álvaro al hablar de formación, experiencia y proyectos. La identidad de gemelo digital debe quedar clara cuando se pregunta por ella.
+- **Tono profesional por defecto:** prioriza claridad y precisión ante consultas laborales. El humor se reserva para conversaciones informales donde encaje; se evitan risas y exclamaciones forzadas.
+- **Respuestas fundamentadas:** utiliza el contexto documental recuperado y reconoce lo que no está documentado, sin atribuir experiencia, métricas o resultados inventados.
+- **Privacidad:** evita divulgar residencia, información personal sensible y datos internos de las empresas. Solo se permiten contactos profesionales aprobados.
+- **Adaptación del idioma:** responde en el idioma del visitante; en inglés emplea un nivel aproximado B2.
+- **Separación de instrucciones y fuentes:** los fragmentos recuperados son datos para responder, no instrucciones que sustituyan al system prompt.
+
+Estas reglas reducen riesgos, pero **no garantizan** que todas las respuestas sean exactas. Es necesario evaluar y revisar el contenido antes de una publicación abierta.
+
+## Pruebas y resultados
+
+Se realizaron cinco preguntas independientes y una prueba adicional de memoria conversacional:
+
+| Prueba | Pregunta | Comportamiento observado |
+| --- | --- | --- |
+| 1. Calconut | ¿Qué experiencia tienes con Power BI en Calconut? | Describe mantenimiento y desarrollo de dashboards, Power Query, DAX y áreas de negocio. |
+| 2. StrikeWatch | ¿Qué es StrikeWatch y qué tecnologías utiliza? | Explica captura de eventos con Python y WebSockets, MySQL y visualización en Power BI. |
+| 3. PredictCar | ¿Qué modelos se utilizaron en PredictCar? | Identifica Decision Tree, Random Forest y XGBoost, y métricas R², MAE y RMSE. |
+| 4. Formación | ¿Qué formación tienes? | Resume DAW, DIGITECH y Evolve en orden cronológico. |
+| 5. Información desconocida | ¿Cuántos años has trabajado profesionalmente con AWS? | No inventa años de experiencia ni atribuye una trayectoria profesional en AWS. |
+
+**Prueba de memoria:** después de «¿Qué es PredictCar?», el agente respondió a «¿Qué tecnologías utilizaste en ese proyecto?» y «¿Qué modelos de Machine Learning comparaste?» manteniendo la referencia a PredictCar. El estado mostró **6 mensajes** guardados (3 preguntas y 3 respuestas).
+
+Los resultados corresponden a ejecuciones manuales del notebook. No constituyen una evaluación estadística exhaustiva ni garantizan el mismo resultado en todas las llamadas.
+
+## Limitaciones y posibles mejoras
+
+- La búsqueda por embeddings puede recuperar fragmentos relacionados semánticamente pero no los más útiles para una pregunta concreta.
+- Gemini puede cambiar la redacción, equivocarse o pasar ocasionalmente a tercera persona; hay que contrastar las afirmaciones con los documentos.
+- `InMemorySaver` conserva el historial únicamente durante la sesión del notebook.
+- La API de Gemini requiere conexión y está sujeta a disponibilidad, cuotas y posibles errores temporales.
+- El chatbot actual se utiliza desde un notebook. Una futura versión podría incorporar Streamlit, despliegue público, persistencia de memoria y una evaluación más amplia.
+
+## Estado del proyecto
+
+**Versión académica funcional:** agente con Gemini, RAG sobre ChromaDB, LangGraph con memoria de sesión y pruebas dentro de Jupyter Notebook. La interfaz web y el despliegue público quedan como posibles ampliaciones.
